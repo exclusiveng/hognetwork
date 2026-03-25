@@ -16,7 +16,7 @@ export class PurchaseController {
     await queryRunner.startTransaction();
 
     try {
-      const { paymentReference, email, dataPlanId, amount } = req.body;
+      const { paymentReference, email, dataPlanId, amount, isManual } = req.body;
 
       // 1. Verify plan exists
       const plan = await queryRunner.manager.findOne(DataPlan, { where: { id: dataPlanId } });
@@ -28,10 +28,19 @@ export class PurchaseController {
         customerEmail: email,
         dataPlanId,
         amount,
-        status: 'completed', // Frontend handles payment, so we assume completion.
+        status: isManual ? 'pending' : 'completed', // Frontend handles payment, so we assume completion if not manual.
       });
 
-      // 3. Find an UNUSED voucher for this plan
+      if (isManual) {
+        await queryRunner.manager.save(payment);
+        await queryRunner.commitTransaction();
+        return res.status(200).json({
+          message: 'Manual payment logged successfully. Pending admin approval.',
+          paymentReference,
+        });
+      }
+
+      // 3. Find an UNUSED voucher for this plan (only for auto payments)
       const voucher = await queryRunner.manager.findOne(Voucher, {
         where: { dataPlanId, isUsed: false },
         lock: { mode: 'pessimistic_write' }, // Prevent race condition

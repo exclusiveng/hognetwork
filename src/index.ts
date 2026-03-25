@@ -16,11 +16,11 @@ import { AppError } from './utils/errors';
 import adminRoutes from './routes/admin.routes';
 import publicRoutes from './routes/public.routes';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables (override existing shell vars to ensure .env PORT is used)
+dotenv.config({ override: true });
 
 const app = express();
-const port = parseInt(process.env.PORT || '3000', 10);
+const port = 5000;
 
 // --- Environment Validation ---
 const hasDatabaseUrl = !!process.env.DATABASE_URL;
@@ -29,9 +29,11 @@ if (!hasDatabaseUrl && !process.env.DB_HOST) {
 }
 
 // --- Security & Middleware ---
+/*
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+*/
 app.use(morgan('dev'));
 
 // CORS Configuration
@@ -41,18 +43,7 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
 ].filter(Boolean) as string[];
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true,
-  }),
-);
+app.use(cors({ origin: true, credentials: true }));
 
 // Rate Limiting
 const limiter = rateLimit({
@@ -110,13 +101,17 @@ const startServer = async () => {
     await AppDataSource.initialize();
     console.log('HogNetwork Data Source has been initialized!');
 
-    app.listen(port, '0.0.0.0', () => {
+    const server = app.listen(port, '0.0.0.0', () => {
       console.log(`
       ################################################
        HogNetwork API listening on port: ${port}
       ################################################
       `);
     });
+    
+    server.timeout = 180000; // 3 minutes for slow uploads
+    server.keepAliveTimeout = 65000;
+    server.headersTimeout = 66000;
 
   } catch (error) {
     console.error('Error during startup:', error);

@@ -17,6 +17,21 @@ export class Setting {
   @Column({ name: 'contact_phone', nullable: true })
   contactPhone: string;
 
+  @Column({ name: 'site_name', nullable: true })
+  siteName: string;
+
+  @Column({ name: 'manual_payment_bank_name', nullable: true })
+  manualPaymentBankName: string;
+
+  @Column({ name: 'manual_payment_account_number', nullable: true })
+  manualPaymentAccountNumber: string;
+
+  @Column({ name: 'manual_payment_account_name', nullable: true })
+  manualPaymentAccountName: string;
+
+  @Column({ type: 'text', nullable: true })
+  notifications: string;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

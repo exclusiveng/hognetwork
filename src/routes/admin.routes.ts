@@ -25,6 +25,11 @@ router.delete('/plans/:id', AdminController.deletePlan);
 router.get('/vouchers', AdminController.getVouchers);
 router.post('/vouchers/bulk', AdminController.addVouchers);
 
+// Payments 
+router.get('/payments', AdminController.getPayments);
+router.post('/payments/:id/approve', AdminController.approvePayment);
+router.post('/payments/:id/reject', AdminController.rejectPayment);
+
 // Settings
 router.get('/settings', AdminController.getSettings);
 router.put('/settings', upload.fields([

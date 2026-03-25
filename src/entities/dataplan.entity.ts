@@ -18,6 +18,18 @@ export class DataPlan {
   @Column({ default: '30 days' })
   validity: string;
 
+  @Column({ type: 'int', default: 1 })
+  devices: number;
+
+  @Column({ type: 'int', default: 5 })
+  upload: number;
+
+  @Column({ type: 'int', default: 8 })
+  download: number;
+
+  @Column({ name: 'payment_link', nullable: true })
+  paymentLink: string;
+
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 

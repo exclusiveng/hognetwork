@@ -4,6 +4,7 @@ import { User, UserRole } from '../entities/user.entity';
 import { DataPlan } from '../entities/dataplan.entity';
 import { Voucher } from '../entities/voucher.entity';
 import { Setting } from '../entities/setting.entity';
+import { Payment } from '../entities/payment.entity';
 import bcrypt from 'bcryptjs';
 import { signToken } from '../services/auth.service';
 import { AppError } from '../utils/errors';
@@ -13,6 +14,7 @@ export class AdminController {
   private static planRepo = AppDataSource.getRepository(DataPlan);
   private static voucherRepo = AppDataSource.getRepository(Voucher);
   private static settingRepo = AppDataSource.getRepository(Setting);
+  private static paymentRepo = AppDataSource.getRepository(Payment);
 
   // --- Auth & Onboarding ---
   static async getRegistrationStatus(req: Request, res: Response, next: NextFunction) {
@@ -169,6 +171,10 @@ export class AdminController {
 
   static async updateSettings(req: Request, res: Response, next: NextFunction) {
     try {
+      console.log('--- Incoming Update Settings ---');
+      console.log('Body:', req.body);
+      console.log('Files:', req.files);
+      
       let settings = await AdminController.settingRepo.findOne({ where: {} });
       if (!settings) {
         settings = AdminController.settingRepo.create();
@@ -188,6 +194,74 @@ export class AdminController {
       Object.assign(settings, updateData);
       await AdminController.settingRepo.save(settings);
       res.json(settings);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // --- Payments ---
+  static async getPayments(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { status } = req.query;
+      const query: any = { order: { createdAt: 'DESC' }, relations: ['dataPlan', 'voucher'] };
+      if (status) query.where = { status };
+
+      const payments = await AdminController.paymentRepo.find(query);
+      res.json(payments);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async approvePayment(req: Request, res: Response, next: NextFunction) {
+    const queryRunner = AppDataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const { id } = req.params;
+      const payment = await queryRunner.manager.findOne(Payment, { where: { id }, relations: ['dataPlan'] });
+      if (!payment) throw new AppError('Payment not found', 404);
+      if (payment.status !== 'pending') throw new AppError('Payment is not pending', 400);
+
+      const voucher = await queryRunner.manager.findOne(Voucher, {
+        where: { dataPlanId: payment.dataPlanId, isUsed: false },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!voucher) throw new AppError('No available vouchers for this plan.', 400);
+
+      voucher.isUsed = true;
+      voucher.usedAt = new Date();
+      voucher.usedByEmail = payment.customerEmail;
+      await queryRunner.manager.save(voucher);
+
+      payment.status = 'completed';
+      payment.voucherId = voucher.id;
+      payment.voucher = voucher;
+      await queryRunner.manager.save(payment);
+
+      await queryRunner.commitTransaction();
+
+      res.json(payment);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      next(error);
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  static async rejectPayment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const payment = await AdminController.paymentRepo.findOneBy({ id });
+      if (!payment) throw new AppError('Payment not found', 404);
+      
+      payment.status = 'failed';
+      await AdminController.paymentRepo.save(payment);
+      
+      res.json(payment);
     } catch (error) {
       next(error);
     }
